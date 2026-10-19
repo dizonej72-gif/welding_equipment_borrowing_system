@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Requests & Approval Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body class="bg-light">
+    <div class="container-fluid px-4 mt-5">
+        <div class="d-flex justify-content-between align-items-center mb-4 p-3 bg-dark text-white rounded shadow-sm">
+            <div>
+                <h3 class="mb-0">🛡️ Supervisor Dashboard & Monitoring System</h3>
+                <small class="text-light opacity-75">Welding Equipment Inventory & Borrowing Management System</small>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="/" class="btn btn-secondary">Back to Inventory</a>
+                <a href="/logout" class="btn btn-danger">Logout</a>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <table class="table table-striped align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Req ID</th>
+                            <th>Borrower Name</th>
+                            <th>Position</th>
+                            <th>Equipment</th>
+                            <th>Qty</th>
+                            <th>Target Return Date</th>
+                            <th>Live Elapsed Time</th>
+                            <th>Status</th>
+                            <th style="width: 180px;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dashboard-table-body">
+                        {% for record in records %}
+                        <tr class="{% if record.status == 'Approved / Borrowed' and today_str > record.expected_return_date %}table-danger{% endif %}">
+                            <td>#{{ record.id }}</td>
+                            <td><strong>{{ record.borrower_name }}</strong></td>
+                            <td><span class="badge bg-secondary">{{ record.position }}</span></td>
+                            <td>{{ record.item_name }}</td>
+                            <td><span class="badge bg-info text-dark fs-6">{{ record.requested_qty }}</span></td>
+                            <td>
+                                {{ record.expected_return_date }}
+                                {% if record.status == 'Approved / Borrowed' and today_str > record.expected_return_date %}
+                                    <br><span class="badge bg-danger">OVERDUE</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.status == 'Approved / Borrowed' and record.approved_at_iso %}
+                                    <span class="badge bg-dark fs-6 font-monospace live-timer" data-approved="{{ record.approved_at_iso }}">
+                                        ⏱️ 00d 00h 00m 00s
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.status == 'Pending Approval' %}
+                                    <span class="badge bg-warning text-dark">Pending Approval</span>
+                                {% elif record.status == 'Approved / Borrowed' %}
+                                    <span class="badge bg-primary">Approved / Borrowed</span>
+                                {% elif record.status == 'Returned' %}
+                                    <span class="badge bg-success">Returned</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Rejected</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if record.status == 'Pending Approval' %}
+                                <div class="d-flex gap-1">
+                                    <form action="/supervisor/approve/{{ record.id }}" method="POST">
+                                        <button type="submit" class="btn btn-success btn-sm">Approve</button>
+                                    </form>
+                                    <form action="/supervisor/reject/{{ record.id }}" method="POST">
+                                        <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+                                    </form>
+                                </div>
+                                {% elif record.status == 'Approved / Borrowed' %}
+                                <form action="/return/{{ record.id }}" method="POST">
+                                    <button type="submit" class="btn btn-outline-info btn-sm">Confirm Return</button>
+                                </form>
+                                {% else %}
+                                <span class="text-muted">Completed</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted">No pending or active borrowing requests found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script para sa Real-time timers at background sync -->
+    <script>
+        function updateLiveTimers() {
+            const timers = document.querySelectorAll('.live-timer');
+            const now = new Date();
+
+            timers.forEach(timer => {
+                const approvedTimeStr = timer.getAttribute('data-approved');
+                if (!approvedTimeStr) return;
+
+                const approvedTime = new Date(approvedTimeStr);
+                const diffMs = now - approvedTime;
+
+                if (diffMs < 0) return;
+
+                const totalSeconds = Math.floor(diffMs / 1000);
+                const days = Math.floor(totalSeconds / 86400);
+                const hours = Math.floor((totalSeconds % 86400) / 3600);
+                const minutes = Math.floor((totalSeconds % 3600) / 60);
+                const seconds = totalSeconds % 60;
+
+                const pad = (num) => String(num).padStart(2, '0');
+                timer.innerHTML = `⏱️ ${pad(days)}d ${pad(hours)}h ${pad(minutes)}m ${pad(seconds)}s`;
+            });
+        }
+
+        setInterval(updateLiveTimers, 1000);
+
+        async function syncDashboard() {
+            try {
+                const res = await fetch('/api/records');
+                if (!res.ok) return;
+                const data = await res.json();
+                const records = data.records;
+                const today_str = data.today_str;
+
+                const tbody = document.getElementById('dashboard-table-body');
+                if (!records || records.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted">No pending or active borrowing requests found.</td></tr>`;
+                    return;
+                }
+
+                let html = '';
+                records.forEach(record => {
+                    let isOverdue = (record.status == 'Approved / Borrowed' && today_str > record.expected_return_date);
+                    let rowClass = isOverdue ? 'table-danger' : '';
+
+                    let statusBadge = '';
+                    if (record.status === 'Pending Approval') statusBadge = '<span class="badge bg-warning text-dark">Pending Approval</span>';
+                    else if (record.status === 'Approved / Borrowed') statusBadge = '<span class="badge bg-primary">Approved / Borrowed</span>';
+                    else if (record.status === 'Returned') statusBadge = '<span class="badge bg-success">Returned</span>';
+                    else statusBadge = '<span class="badge bg-danger">Rejected</span>';
+
+                    let timerBadge = (record.status === 'Approved / Borrowed' && record.approved_at_iso) 
+                        ? `<span class="badge bg-dark fs-6 font-monospace live-timer" data-approved="${record.approved_at_iso}">⏱️ 00d 00h 00m 00s</span>`
+                        : `<span class="text-muted">-</span>`;
+
+                    let actionBtn = '';
+                    if (record.status === 'Pending Approval') {
+                        actionBtn = `
+                            <div class="d-flex gap-1">
+                                <form action="/supervisor/approve/${record.id}" method="POST">
+                                    <button type="submit" class="btn btn-success btn-sm">Approve</button>
+                                </form>
+                                <form action="/supervisor/reject/${record.id}" method="POST">
+                                    <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+                                </form>
+                            </div>`;
+                    } else if (record.status === 'Approved / Borrowed') {
+                        actionBtn = `
+                            <form action="/return/${record.id}" method="POST">
+                                <button type="submit" class="btn btn-outline-info btn-sm">Confirm Return</button>
+                            </form>`;
+                    } else {
+                        actionBtn = `<span class="text-muted">Completed</span>`;
+                    }
+
+                    html += `
+                        <tr class="${rowClass}">
+                            <td>#${record.id}</td>
+                            <td><strong>${record.borrower_name}</strong></td>
+                            <td><span class="badge bg-secondary">${record.position}</span></td>
+                            <td>${record.item_name}</td>
+                            <td><span class="badge bg-info text-dark fs-6">${record.requested_qty}</span></td>
+                            <td>${record.expected_return_date} ${isOverdue ? '<br><span class="badge bg-danger">OVERDUE</span>' : ''}</td>
+                            <td>${timerBadge}</td>
+                            <td>${statusBadge}</td>
+                            <td>${actionBtn}</td>
+                        </tr>`;
+                });
+                tbody.innerHTML = html;
+            } catch (e) {
+                console.error("Dashboard sync error:", e);
+            }
+        }
+
+        setInterval(syncDashboard, 3000);
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

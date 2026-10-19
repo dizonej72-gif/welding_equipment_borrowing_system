@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Supervisor Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body class="container mt-4">
+    <h2>Supervisor Dashboard (Steps 5, 6, & 9)</h2>
+    <a href="/inventory" class="btn btn-secondary mb-3">Go to Inventory</a>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Req ID</th>
+                <th>Employee</th>
+                <th>Item</th>
+                <th>Status</th>
+                <th>Workflow Stage</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for req in requests %}
+            <tr>
+                <td>{{ req.id }}</td>
+                <td>{{ req.employee_name }}</td>
+                <td>{{ req.item_name }}</td>
+                <td><span class="badge bg-primary">{{ req.status }}</span></td>
+                <td><small>{{ req.stage }}</small></td>
+                <td>
+                    {% if req.status == 'Pending Review' %}
+                    <!-- Step 6: Approve or Reject Request -->
+                    <form action="/supervisor/action/{{ req.id }}/approve" method="POST" class="d-inline">
+                        <button class="btn btn-success btn-sm">Approve</button>
+                    </form>
+                    <form action="/supervisor/action/{{ req.id }}/reject" method="POST" class="d-inline">
+                        <button class="btn btn-danger btn-sm">Reject</button>
+                    </form>
+                    {% elif req.status == 'Pending Return Confirmation' %}
+                    <!-- Step 9: Supervisor Confirms Return -->
+                    <form action="/supervisor/confirm_return/{{ req.id }}" method="POST" class="d-inline">
+                        <button class="btn btn-warning btn-sm">Step 9: Confirm Return</button>
+                    </form>
+                    {% else %}
+                    <span class="text-muted">No Action Needed</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
