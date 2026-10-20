@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
-from datetime import datetime, date
+from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = 'welding_borrowing_secret_key'
@@ -33,12 +33,15 @@ ADMIN_PASS = "welding123"
 
 @app.route('/')
 def home():
-    today_str = date.today().isoformat()
+    session.pop('logged_in', None)
+    session.pop('admin_name', None)
+    
+    today_str = datetime.now().strftime("%Y-%m-%dT%H:%M")
     return render_template('inventory.html', inventory=inventory, records=borrowed_records, today_str=today_str)
 
 @app.route('/api/inventory_data')
 def api_inventory_data():
-    today_str = date.today().isoformat()
+    today_str = datetime.now().strftime("%Y-%m-%dT%H:%M")
     return jsonify({
         "inventory": inventory,
         "records": borrowed_records,
@@ -51,11 +54,13 @@ def request_borrow(item_id):
     borrower_name = request.form.get('borrower_name')
     position = request.form.get('position')
     requested_qty = int(request.form.get('requested_qty', 1))
-    return_date = request.form.get('return_date')
+    return_datetime = request.form.get('return_datetime')
 
     item = next((i for i in inventory if i["id"] == item_id), None)
 
     if item and item["available_qty"] >= requested_qty:
+        formatted_return = return_datetime.replace('T', ' ') if return_datetime else ''
+        
         record = {
             "id": record_id_counter,
             "borrower_name": borrower_name,
@@ -65,7 +70,7 @@ def request_borrow(item_id):
             "requested_qty": requested_qty,
             "borrow_date": datetime.now().strftime("%Y-%m-%d %H:%M"),
             "approved_at_iso": None,
-            "expected_return_date": return_date,
+            "expected_return_date": formatted_return,
             "status": "Pending Approval"
         }
         borrowed_records.append(record)
@@ -108,14 +113,14 @@ def view_records():
         flash('Please log in as supervisor to access the dashboard.', 'warning')
         return redirect(url_for('login'))
         
-    today_str = date.today().isoformat()
+    today_str = datetime.now().strftime("%Y-%m-%dT%H:%M")
     return render_template('status.html', records=borrowed_records, today_str=today_str)
 
 @app.route('/api/records')
 def api_records():
     if not session.get('logged_in'):
         return jsonify({"error": "Unauthorized"}), 401
-    today_str = date.today().isoformat()
+    today_str = datetime.now().strftime("%Y-%m-%dT%H:%M")
     return jsonify({"records": borrowed_records, "today_str": today_str})
 
 @app.route('/supervisor/approve/<int:record_id>', methods=['POST'])
@@ -131,7 +136,7 @@ def approve_request(record_id):
             item["available_qty"] -= record["requested_qty"]
             record["status"] = "Approved / Borrowed"
             record["approved_at_iso"] = datetime.now().isoformat()
-            flash(f'Request #{record["id"]} approved! Timer started.', 'success')
+            flash(f'Request #{record["id"]} approved!', 'success')
         else:
             flash(f'Cannot approve. Insufficient stock for {record["item_name"]}!', 'danger')
 
@@ -164,10 +169,5 @@ def return_item(record_id):
         return redirect(url_for('view_records'))
     return redirect(url_for('home'))
 
-import os
-
-# ... (iyong mga code at routes) ...
-
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=5000, debug=True)
