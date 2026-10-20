@@ -84,7 +84,7 @@
                                         </select>
                                     </div>
                                     <div class="col-md-2">
-                                        <input type="date" name="return_date" class="form-control form-control-sm" required>
+                                        <input type="datetime-local" name="return_datetime" class="form-control form-control-sm" required title="Target Return Date & Time">
                                     </div>
                                     <div class="col-md-2">
                                         <button type="submit" class="btn btn-primary btn-sm w-100">Request</button>
@@ -101,10 +101,10 @@
             </div>
         </div>
 
-        <!-- Active Borrowed Items & Live Monitoring Section -->
+        <!-- Borrowed Items Status Section -->
         <div class="card shadow-sm mb-5">
             <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">Active Borrowed Items & Live Monitoring</h5>
+                <h5 class="mb-0">Borrowing Requests & Status</h5>
             </div>
             <div class="card-body">
                 <table class="table table-striped align-middle">
@@ -114,8 +114,7 @@
                             <th>Borrower Name</th>
                             <th>Equipment</th>
                             <th>Qty</th>
-                            <th>Target Return Date</th>
-                            <th>Live Elapsed Time</th>
+                            <th>Target Return Date & Time</th>
                             <th>Status</th>
                             <th>Action</th>
                         </tr>
@@ -123,33 +122,18 @@
                     <tbody id="public-records-body">
                         {% set active_found = false %}
                         {% for record in records %}
-                            {% if record.status == 'Pending Approval' or record.status == 'Approved / Borrowed' %}
+                            {% if record.status != 'Returned' and record.status != 'Rejected' %}
                                 {% set active_found = true %}
-                                {% set is_overdue = (record.status == 'Approved / Borrowed' and today_str > record.expected_return_date) %}
-                                <tr class="{% if is_overdue %}table-danger{% endif %}">
+                                <tr>
                                     <td>#{{ record.id }}</td>
                                     <td><strong>{{ record.borrower_name }}</strong> <br><small class="text-muted">({{ record.position }})</small></td>
                                     <td>{{ record.item_name }}</td>
                                     <td><span class="badge bg-info text-dark">{{ record.requested_qty }}</span></td>
-                                    <td>
-                                        {{ record.expected_return_date }}
-                                        {% if is_overdue %}
-                                            <br><span class="badge bg-danger">OVERDUE</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if record.status == 'Approved / Borrowed' and record.approved_at_iso %}
-                                            <span class="badge bg-dark fs-6 font-monospace live-timer" data-approved="{{ record.approved_at_iso }}">
-                                                ⏱️ 00d 00h 00m 00s
-                                            </span>
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
+                                    <td>{{ record.expected_return_date }}</td>
                                     <td>
                                         {% if record.status == 'Pending Approval' %}
                                             <span class="badge bg-warning text-dark">Pending Approval</span>
-                                        {% else %}
+                                        {% elif record.status == 'Approved / Borrowed' %}
                                             <span class="badge bg-primary">Approved / Borrowed</span>
                                         {% endif %}
                                     </td>
@@ -159,7 +143,7 @@
                                             <button type="submit" class="btn btn-outline-danger btn-sm">Return Item</button>
                                         </form>
                                         {% else %}
-                                        <span class="text-muted small">Waiting for approval</span>
+                                        <span class="text-muted small">Waiting for supervisor approval</span>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -167,7 +151,7 @@
                         {% endfor %}
                         {% if not active_found %}
                         <tr>
-                            <td colspan="8" class="text-center text-muted">No active borrowed items or pending requests at the moment.</td>
+                            <td colspan="7" class="text-center text-muted">No active borrowing requests at the moment.</td>
                         </tr>
                         {% endif %}
                     </tbody>
@@ -176,34 +160,7 @@
         </div>
     </div>
 
-    <!-- Script para sa Live Timers at background sync -->
     <script>
-        function updateLiveTimers() {
-            const timers = document.querySelectorAll('.live-timer');
-            const now = new Date();
-
-            timers.forEach(timer => {
-                const approvedTimeStr = timer.getAttribute('data-approved');
-                if (!approvedTimeStr) return;
-
-                const approvedTime = new Date(approvedTimeStr);
-                const diffMs = now - approvedTime;
-
-                if (diffMs < 0) return;
-
-                const totalSeconds = Math.floor(diffMs / 1000);
-                const days = Math.floor(totalSeconds / 86400);
-                const hours = Math.floor((totalSeconds % 86400) / 3600);
-                const minutes = Math.floor((totalSeconds % 3600) / 60);
-                const seconds = totalSeconds % 60;
-
-                const pad = (num) => String(num).padStart(2, '0');
-                timer.innerHTML = `⏱️ ${pad(days)}d ${pad(hours)}h ${pad(minutes)}m ${pad(seconds)}s`;
-            });
-        }
-
-        setInterval(updateLiveTimers, 1000);
-
         async function syncPublicPage() {
             try {
                 const res = await fetch('/api/inventory_data');
@@ -222,40 +179,30 @@
                 });
 
                 const tbody = document.getElementById('public-records-body');
-                const activeRecords = data.records.filter(r => r.status === 'Pending Approval' || r.status === 'Approved / Borrowed');
+                const activeRecords = data.records.filter(r => r.status !== 'Returned' && r.status !== 'Rejected');
                 
                 if (activeRecords.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted">No active borrowed items or pending requests at the moment.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">No active borrowing requests at the moment.</td></tr>`;
                     return;
                 }
 
                 let html = '';
                 activeRecords.forEach(record => {
-                    let isOverdue = (record.status === 'Approved / Borrowed' && data.today_str > record.expected_return_date);
-                    let rowClass = isOverdue ? 'table-danger' : '';
-
                     let statusBadge = (record.status === 'Pending Approval') 
                         ? '<span class="badge bg-warning text-dark">Pending Approval</span>'
                         : '<span class="badge bg-primary">Approved / Borrowed</span>';
 
-                    let timerBadge = (record.status === 'Approved / Borrowed' && record.approved_at_iso)
-                        ? `<span class="badge bg-dark fs-6 font-monospace live-timer" data-approved="${record.approved_at_iso}">⏱️ 00d 00h 00m 00s</span>`
-                        : `<span class="text-muted">-</span>`;
-
                     let actionBtn = (record.status === 'Approved / Borrowed')
                         ? `<form action="/return/${record.id}" method="POST"><button type="submit" class="btn btn-outline-danger btn-sm">Return Item</button></form>`
-                        : `<span class="text-muted small">Waiting for approval</span>`;
-
-                    let returnDateCol = `${record.expected_return_date} ${isOverdue ? '<br><span class="badge bg-danger">OVERDUE</span>' : ''}`;
+                        : `<span class="text-muted small">Waiting for supervisor approval</span>`;
 
                     html += `
-                        <tr class="${rowClass}">
+                        <tr>
                             <td>#${record.id}</td>
                             <td><strong>${record.borrower_name}</strong> <br><small class="text-muted">(${record.position})</small></td>
                             <td>${record.item_name}</td>
                             <td><span class="badge bg-info text-dark">${record.requested_qty}</span></td>
-                            <td>${returnDateCol}</td>
-                            <td>${timerBadge}</td>
+                            <td>${record.expected_return_date}</td>
                             <td>${statusBadge}</td>
                             <td>${actionBtn}</td>
                         </tr>`;
