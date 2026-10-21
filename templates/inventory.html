@@ -45,7 +45,7 @@
                             <th>ID</th>
                             <th>Equipment Name</th>
                             <th>Available Qty</th>
-                            <th style="width: 65%;">Submit Borrow Request</th>
+                            <th style="width: 55%;">Submit Borrow Request</th>
                         </tr>
                     </thead>
                     <tbody id="inventory-table-body">
@@ -63,8 +63,8 @@
                             <td>
                                 {% if item.available_qty > 0 %}
                                 <form action="/request_borrow/{{ item.id }}" method="POST" class="row g-2">
-                                    <div class="col-md-3">
-                                        <input type="text" name="borrower_name" class="form-control form-control-sm" placeholder="Name" required>
+                                    <div class="col-md-4">
+                                        <input type="text" name="borrower_name" class="form-control form-control-sm" placeholder="Full Name" required>
                                     </div>
                                     <div class="col-md-3">
                                         <select name="position" class="form-select form-select-sm" required>
@@ -75,16 +75,13 @@
                                             <option value="Technician">Technician</option>
                                         </select>
                                     </div>
-                                    <div class="col-md-2">
+                                    <div class="col-md-3">
                                         <select name="requested_qty" class="form-select form-select-sm" required>
                                             <option value="" selected disabled>Qty...</option>
                                             {% for q in range(1, item.available_qty + 1) %}
                                                 <option value="{{ q }}">{{ q }}</option>
                                             {% endfor %}
                                         </select>
-                                    </div>
-                                    <div class="col-md-2">
-                                        <input type="datetime-local" name="return_datetime" class="form-control form-control-sm" required title="Target Return Date & Time">
                                     </div>
                                     <div class="col-md-2">
                                         <button type="submit" class="btn btn-primary btn-sm w-100">Request</button>
@@ -114,7 +111,7 @@
                             <th>Borrower Name</th>
                             <th>Equipment</th>
                             <th>Qty</th>
-                            <th>Target Return Date & Time</th>
+                            <th>Borrow Date & Time</th>
                             <th>Status</th>
                             <th>Action</th>
                         </tr>
@@ -129,7 +126,7 @@
                                     <td><strong>{{ record.borrower_name }}</strong> <br><small class="text-muted">({{ record.position }})</small></td>
                                     <td>{{ record.item_name }}</td>
                                     <td><span class="badge bg-info text-dark">{{ record.requested_qty }}</span></td>
-                                    <td>{{ record.expected_return_date }}</td>
+                                    <td>{{ record.approved_at }}</td>
                                     <td>
                                         {% if record.status == 'Pending Approval' %}
                                             <span class="badge bg-warning text-dark">Pending Approval</span>
@@ -202,7 +199,7 @@
                             <td><strong>${record.borrower_name}</strong> <br><small class="text-muted">(${record.position})</small></td>
                             <td>${record.item_name}</td>
                             <td><span class="badge bg-info text-dark">${record.requested_qty}</span></td>
-                            <td>${record.expected_return_date}</td>
+                            <td>${record.approved_at}</td>
                             <td>${statusBadge}</td>
                             <td>${actionBtn}</td>
                         </tr>`;
