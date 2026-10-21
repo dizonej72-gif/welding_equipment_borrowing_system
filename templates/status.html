@@ -40,12 +40,11 @@
                                 <th class="py-3 px-3" style="width: 8%;">Req ID</th>
                                 <th class="py-3 px-3" style="width: 15%;">Borrower Name</th>
                                 <th class="py-3 px-3" style="width: 10%;">Position</th>
-                                <th class="py-3 px-3" style="width: 18%;">Equipment</th>
+                                <th class="py-3 px-3" style="width: 20%;">Equipment</th>
                                 <th class="py-3 px-3 text-center" style="width: 6%;">Qty</th>
-                                <th class="py-3 px-3" style="width: 15%;">Target Return Date & Time</th>
-                                <th class="py-3 px-3" style="width: 12%;">Live Elapsed Time</th>
-                                <th class="py-3 px-3 text-center" style="width: 10%;">Status</th>
-                                <th class="py-3 px-3 text-center" style="width: 14%;">Action</th>
+                                <th class="py-3 px-3" style="width: 17%;">Borrow Date & Time</th>
+                                <th class="py-3 px-3 text-center" style="width: 14%;">Status</th>
+                                <th class="py-3 px-3 text-center" style="width: 10%;">Action</th>
                             </tr>
                         </thead>
                         <tbody id="dashboard-table-body">
@@ -56,16 +55,7 @@
                                 <td class="px-3"><span class="badge bg-secondary">{{ record.position }}</span></td>
                                 <td class="px-3">{{ record.item_name }}</td>
                                 <td class="px-3 text-center"><span class="badge bg-info text-dark fs-6">{{ record.requested_qty }}</span></td>
-                                <td class="px-3 text-muted small">{{ record.expected_return_date }}</td>
-                                <td class="px-3">
-                                    {% if record.status == 'Approved / Borrowed' and record.approved_at_iso %}
-                                        <span class="badge bg-dark fs-6 font-monospace live-timer" data-approved="{{ record.approved_at_iso }}">
-                                            ⏱️ 00d 00h 00m 00s
-                                        </span>
-                                    {% else %}
-                                        <span class="text-muted">-</span>
-                                    {% endif %}
-                                </td>
+                                <td class="px-3 text-muted">{{ record.approved_at }}</td>
                                 <td class="px-3 text-center">
                                     {% if record.status == 'Pending Approval' %}
                                         <span class="badge bg-warning text-dark">Pending Approval</span>
@@ -98,7 +88,7 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="9" class="text-center text-muted py-4">No pending or active borrowing requests found.</td>
+                                <td colspan="8" class="text-center text-muted py-4">No pending or active borrowing requests found.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -108,34 +98,8 @@
         </div>
     </div>
 
-    <!-- Script para sa Real-time timers at background sync -->
+    <!-- Script para sa background sync -->
     <script>
-        function updateLiveTimers() {
-            const timers = document.querySelectorAll('.live-timer');
-            const now = new Date();
-
-            timers.forEach(timer => {
-                const approvedTimeStr = timer.getAttribute('data-approved');
-                if (!approvedTimeStr) return;
-
-                const approvedTime = new Date(approvedTimeStr);
-                const diffMs = now - approvedTime;
-
-                if (diffMs < 0) return;
-
-                const totalSeconds = Math.floor(diffMs / 1000);
-                const days = Math.floor(totalSeconds / 86400);
-                const hours = Math.floor((totalSeconds % 86400) / 3600);
-                const minutes = Math.floor((totalSeconds % 3600) / 60);
-                const seconds = totalSeconds % 60;
-
-                const pad = (num) => String(num).padStart(2, '0');
-                timer.innerHTML = `⏱️ ${pad(days)}d ${pad(hours)}h ${pad(minutes)}m ${pad(seconds)}s`;
-            });
-        }
-
-        setInterval(updateLiveTimers, 1000);
-
         async function syncDashboard() {
             try {
                 const res = await fetch('/api/records');
@@ -145,7 +109,7 @@
 
                 const tbody = document.getElementById('dashboard-table-body');
                 if (!records || records.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">No pending or active borrowing requests found.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No pending or active borrowing requests found.</td></tr>`;
                     return;
                 }
 
@@ -156,10 +120,6 @@
                     else if (record.status === 'Approved / Borrowed') statusBadge = '<span class="badge bg-primary">Approved / Borrowed</span>';
                     else if (record.status === 'Returned') statusBadge = '<span class="badge bg-success">Returned</span>';
                     else statusBadge = '<span class="badge bg-danger">Rejected</span>';
-
-                    let timerBadge = (record.status === 'Approved / Borrowed' && record.approved_at_iso) 
-                        ? `<span class="badge bg-dark fs-6 font-monospace live-timer" data-approved="${record.approved_at_iso}">⏱️ 00d 00h 00m 00s</span>`
-                        : `<span class="text-muted">-</span>`;
 
                     let actionBtn = '';
                     if (record.status === 'Pending Approval') {
@@ -188,8 +148,7 @@
                             <td class="px-3"><span class="badge bg-secondary">${record.position}</span></td>
                             <td class="px-3">${record.item_name}</td>
                             <td class="px-3 text-center"><span class="badge bg-info text-dark fs-6">${record.requested_qty}</span></td>
-                            <td class="px-3 text-muted small">${record.expected_return_date}</td>
-                            <td class="px-3">${timerBadge}</td>
+                            <td class="px-3 text-muted">${record.approved_at}</td>
                             <td class="px-3 text-center">${statusBadge}</td>
                             <td class="px-3 text-center">${actionBtn}</td>
                         </tr>`;
