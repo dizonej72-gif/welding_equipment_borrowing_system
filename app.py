@@ -35,17 +35,13 @@ ADMIN_PASS = "welding123"
 def home():
     session.pop('logged_in', None)
     session.pop('admin_name', None)
-    
-    today_str = datetime.now().strftime("%Y-%m-%dT%H:%M")
-    return render_template('inventory.html', inventory=inventory, records=borrowed_records, today_str=today_str)
+    return render_template('inventory.html', inventory=inventory, records=borrowed_records)
 
 @app.route('/api/inventory_data')
 def api_inventory_data():
-    today_str = datetime.now().strftime("%Y-%m-%dT%H:%M")
     return jsonify({
         "inventory": inventory,
-        "records": borrowed_records,
-        "today_str": today_str
+        "records": borrowed_records
     })
 
 @app.route('/request_borrow/<int:item_id>', methods=['POST'])
@@ -54,13 +50,10 @@ def request_borrow(item_id):
     borrower_name = request.form.get('borrower_name')
     position = request.form.get('position')
     requested_qty = int(request.form.get('requested_qty', 1))
-    return_datetime = request.form.get('return_datetime')
 
     item = next((i for i in inventory if i["id"] == item_id), None)
 
     if item and item["available_qty"] >= requested_qty:
-        formatted_return = return_datetime.replace('T', ' ') if return_datetime else ''
-        
         record = {
             "id": record_id_counter,
             "borrower_name": borrower_name,
@@ -68,9 +61,8 @@ def request_borrow(item_id):
             "item_name": item["name"],
             "item_id": item["id"],
             "requested_qty": requested_qty,
-            "borrow_date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "approved_at_iso": None,
-            "expected_return_date": formatted_return,
+            "request_date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "approved_at": "-",  # Lalagyan ng oras pagka-approve
             "status": "Pending Approval"
         }
         borrowed_records.append(record)
@@ -113,15 +105,13 @@ def view_records():
         flash('Please log in as supervisor to access the dashboard.', 'warning')
         return redirect(url_for('login'))
         
-    today_str = datetime.now().strftime("%Y-%m-%dT%H:%M")
-    return render_template('status.html', records=borrowed_records, today_str=today_str)
+    return render_template('status.html', records=borrowed_records)
 
 @app.route('/api/records')
 def api_records():
     if not session.get('logged_in'):
         return jsonify({"error": "Unauthorized"}), 401
-    today_str = datetime.now().strftime("%Y-%m-%dT%H:%M")
-    return jsonify({"records": borrowed_records, "today_str": today_str})
+    return jsonify({"records": borrowed_records})
 
 @app.route('/supervisor/approve/<int:record_id>', methods=['POST'])
 def approve_request(record_id):
@@ -135,7 +125,7 @@ def approve_request(record_id):
         if item and item["available_qty"] >= record["requested_qty"]:
             item["available_qty"] -= record["requested_qty"]
             record["status"] = "Approved / Borrowed"
-            record["approved_at_iso"] = datetime.now().isoformat()
+            record["approved_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")  # Auto-timestamp dito
             flash(f'Request #{record["id"]} approved!', 'success')
         else:
             flash(f'Cannot approve. Insufficient stock for {record["item_name"]}!', 'danger')
